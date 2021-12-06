@@ -47,7 +47,7 @@ class ALPHA_ENV(gym.Env):
 
         # TODO: 临时参数
         self.K = 10 # 历史期为10
-        self.test_stock_num = 30    # 先用20支股票测试
+        self.test_stock_num = 30    # 先用30支股票测试
 
 
     def reset(self):
@@ -95,30 +95,35 @@ class ALPHA_ENV(gym.Env):
         # 所有股票再t时间点往前K步的历史记录
         all_stock_his_state = []
 
+        self.time_stump1 = self.time_stump[self.stock_list == self.stock_all[0]]  # 这支股票的时间点
+        self.trade_date = np.random.randint(self.K - 1, len(self.time_stump1) - self.seq_time)  # 随机选交易开始时间点
+
         self.all_stock_close = []
 
         for i in range(self.test_stock_num):
             thscode = self.stock_all[i]
             self.dt = self.data_train[self.stock_list == thscode]
-            self.feature_at_t = np.array(self.dt.iloc[:, 3:])    # 这支股票的特征
-            self.all_stock_close.append(self.close_train[self.stock_list == thscode])  # 这支股票的收盘价
-            self.time_stump1 = self.time_stump[self.stock_list == thscode]  # 这支股票的时间点
-            self.trade_date = np.random.randint(self.K - 1, len(self.time_stump1) - self.seq_time)
+            stock_i_feature = np.array(self.dt.iloc[:, 3:])    # 这支股票的特征（所有时间点）
 
-            # k_his_state为
-            k_his_state = self.get_K_his_state(self.trade_date, self.t)
+            self.all_stock_close.append(self.close_train[self.stock_list == thscode])  # 这支股票的收盘价
+
+            # 股票i在时间点trade_date+t时到往前K步的特征
+            k_his_state = self.get_K_his_state(stock_i_feature, self.trade_date+self.t)
+
+            # 所有股票K时间窗的特征
             all_stock_his_state.append(k_his_state)
 
-
         self.all_stock_close = np.array(self.all_stock_close).transpose()
+        # 维数：(all_time, num_stock)
+
         # 返回列表的维数: (num_stock, window_size_k, feature_dim)
         return all_stock_his_state
 
-    def get_K_his_state(self, trade_date, t):
+    def get_K_his_state(self, feature, time_stamp):
         # 第i支股票在t时间点往前K步的历史记录
         k_his_state = []  # (window_size_K, feature_dim)
         for j in range(self.K):
-            his_state = self.feature_at_t[trade_date + t - self.K + j]
+            his_state = feature[time_stamp - self.K + j]
             # add_state = np.array([Portfolio_unit, Rest_unit]).flatten()
             # his_state = np.hstack([his_state, add_state])
             k_his_state.append(his_state)
@@ -187,8 +192,8 @@ class ALPHA_ENV(gym.Env):
         for i in range(self.test_stock_num):
             thscode = self.stock_all[i]
             self.dt = self.data_train[self.stock_list == thscode]
-            self.feature_at_t = np.array(self.dt.iloc[:, 3:])    # 这支股票的特征
-            k_his_state = self.get_K_his_state(self.trade_date, self.t)
+            stock_i_feature = np.array(self.dt.iloc[:, 3:])    # 这支股票的特征
+            k_his_state = self.get_K_his_state(stock_i_feature, self.trade_date+self.t)
             all_stock_his_state.append(k_his_state)
 
         state = all_stock_his_state
