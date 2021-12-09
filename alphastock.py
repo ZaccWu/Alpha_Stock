@@ -6,7 +6,7 @@ import numpy as np
 import random
 import time
 from collections import deque
-from alpha_env import ALPHA_ENV
+from env.alpha_env import ALPHA_ENV
 
 # Hyper Parameters for PG Network
 GAMMA = 0.95  # discount factor
@@ -244,7 +244,7 @@ class PG(object):
         # action = np.random.choice(range(prob_weights.shape[0]),
         #                           p=prob_weights)  # select action w.r.t the actions prob
 
-        action_prob = network_output.detach().numpy()[0]
+        action_prob = network_output.detach().cpu().numpy()[0]
         # action_prob的形式: [0.4, 0.1, 0,..., -0.2, -0.3]
         # action_prob=np.array([0.4,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-0.2,-0.3])
         action_shuffle = [np.random.binomial(1,i)
@@ -254,7 +254,7 @@ class PG(object):
         # action_prob的形式: [1, 0, 0,..., -1, 0]（随机向量）
 
         action = [0]*len(action_shuffle)
-        sorted_indices = sorted_indices.detach().numpy()[0]
+        sorted_indices = sorted_indices.detach().cpu().numpy()[0]
 
         for i in range(len(action_shuffle)):
             action[sorted_indices[i]] = action_shuffle[i]
@@ -290,8 +290,10 @@ class PG(object):
         # Step 2: 前向传播
         softmax_input, _ = self.network.forward(torch.FloatTensor(self.ep_obs).to(device))
         # all_act_prob = F.softmax(softmax_input, dim=0).detach().numpy()
-
-        neg_log_prob = F.cross_entropy(input=softmax_input, target=(torch.LongTensor(self.ep_as)).float().to(device),
+        tar = torch.LongTensor(self.ep_as)
+        print(tar.shape)
+        
+        neg_log_prob = F.cross_entropy(input=softmax_input, target=tar.to(device),
                                        reduction='none')
 
         # Step 3: 反向传播
