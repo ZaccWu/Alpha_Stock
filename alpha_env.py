@@ -18,8 +18,8 @@ class ALPHA_ENV(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self):
-
-        df = pd.read_csv(r'combine/2018_zz500.csv')
+        df = pd.read_csv(r'zztest.csv')
+        #df = pd.read_csv(r'combine/2018_zz500.csv')
         self.today = '2018/1/2'
 
 

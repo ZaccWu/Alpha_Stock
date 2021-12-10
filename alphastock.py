@@ -180,13 +180,16 @@ class PortfolioGenerator(nn.Module):
 
         # zeros_like: 生成和括号内变量维度一致的全是0的内容
         reordered_b_c = torch.zeros_like(b_c, requires_grad=True).type(x.dtype)
-        # out-of-place copy,  but only support one dim index
-        torch.scatter(input=reordered_b_c,
-                      index=sorted_indices,
-                      src=b_c,
-                      dim=1)
 
-        return reordered_b_c, sorted_indices
+
+        # out-of-place copy,  but only support one dim index
+        # reordered_b_c = reordered_b_c.scatter(
+        #               index=sorted_indices,
+        #               src=b_c,
+        #               dim=1)
+
+
+        return b_c, sorted_indices
 
 class PGNetwork(nn.Module):
     def __init__(self):
@@ -247,11 +250,13 @@ class PG(object):
         action_prob = network_output.detach().cpu().numpy()[0]
         # action_prob的形式: [0.4, 0.1, 0,..., -0.2, -0.3]
         # action_prob=np.array([0.4,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-0.2,-0.3])
+
+
         action_shuffle = [np.random.binomial(1,i)
                           if i>=0 else -np.random.binomial(1,-i)
                           for i in action_prob
                           ] # 按概率决定是否交易
-        # action_prob的形式: [1, 0, 0,..., -1, 0]（随机向量）
+        # action_shuffle的形式: [1, 0, 0,..., -1, 0]（随机向量）
 
         action = [0]*len(action_shuffle)
         sorted_indices = sorted_indices.detach().cpu().numpy()[0]
@@ -259,9 +264,10 @@ class PG(object):
         for i in range(len(action_shuffle)):
             action[sorted_indices[i]] = action_shuffle[i]
 
-
         # 这里返回的action是一个概率向量，代表每只股票发生交易的概率，action对应位置代表对应股票
         # TODO: 假设前面的（多头）为正，后面的（空头）为负，但向量绝对值之和归一
+        # TODO: 在RL优化当中，可能只能让action按概率取某一个值，而不能是一个向量
+
         return action
 
     # 将状态，动作，奖励这一个transition保存到三个列表中
@@ -290,11 +296,12 @@ class PG(object):
         # Step 2: 前向传播
         softmax_input, _ = self.network.forward(torch.FloatTensor(self.ep_obs).to(device))
         # all_act_prob = F.softmax(softmax_input, dim=0).detach().numpy()
-        tar = torch.LongTensor(self.ep_as)
-        print(tar.shape)
-        
+        tar = torch.LongTensor(self.ep_as).float()
+        # TODO: 输入的target，在本机上提示需要float的类型，但是服务器上却要long
+        # print(softmax_input.shape,tar.shape)
         neg_log_prob = F.cross_entropy(input=softmax_input, target=tar.to(device),
                                        reduction='none')
+        # TODO: cross_entropy的问题，注意这里需要torch版本>=1.10.0才有概率式target的支持
 
         # Step 3: 反向传播
         loss = torch.mean(neg_log_prob * discounted_ep_rs)
@@ -323,10 +330,11 @@ def main():
             action = agent.choose_action(state)  # softmax概率选择action
             next_state, reward, done, _ = env.step(action)
             agent.store_transition(state, action, reward)  # 新函数 存取这个transition
+
             state = next_state
             if done:
                 # print("stick for ",step, " steps")
-                print("episode:", episode, "episode reward", np.mean(agent.ep_rs))
+                print("episode: ", episode, "episode reward: {:.2f}".format(np.mean(agent.ep_rs)))
                 agent.learn()  # 更新策略网络
                 break
 
