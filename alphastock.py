@@ -75,7 +75,7 @@ class StdAttn(nn.Module):
         return summed_ha_rep
 
 class LSTMHA(nn.Module):
-    def __init__(self, lstm_input_size=29, lstm_h_dim=32,
+    def __init__(self, lstm_input_size=30, lstm_h_dim=32,
                  lstm_num_layers=1,
                  attn_w_dim=64, dropout=0.2):
         """
@@ -239,18 +239,10 @@ class PG(object):
         # TODO: 解决输入state维度问题
         observation = torch.FloatTensor(observation).to(device)
         network_output, sorted_indices = self.network.forward(observation)
-        # network_output是portfolio向量(b_c)，正值代表买入，负值代表卖出
-
-        # with torch.no_grad():
-        #     prob_weights = F.softmax(network_output, dim=0).cuda().data.cpu().numpy()
-        # # prob_weights = F.softmax(network_output, dim=0).detach().numpy()
-        # action = np.random.choice(range(prob_weights.shape[0]),
-        #                           p=prob_weights)  # select action w.r.t the actions prob
 
         action_prob = network_output.detach().cpu().numpy()[0]
         # action_prob的形式: [0.4, 0.1, 0,..., -0.2, -0.3]
         # action_prob=np.array([0.4,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-0.2,-0.3])
-
 
         action_shuffle = [np.random.binomial(1,i)
                           if i>=0 else -np.random.binomial(1,-i)
@@ -325,6 +317,7 @@ def main():
 
     for episode in range(1,EPISODE):
         state = env.reset() # 返回的state维数: (num_stock, window_size_k, feature_dim)
+
         # TODO: 解决batch问题，当前只适用于batch_size=1
         for step in range(STEP):
             action = agent.choose_action(state)  # softmax概率选择action
