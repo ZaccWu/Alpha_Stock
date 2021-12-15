@@ -280,31 +280,31 @@ class PG(object):
         self.time_step += 1
 
         # Step 1: 计算每一步的状态价值
-        discounted_ep_rs = np.zeros_like(self.ep_rs)
+        epiRewardDiscounted = np.zeros_like(self.ep_rs)
         running_add = 0
         # 注意这里是从后往前算的，所以式子还不太一样。算出每一步的状态价值
         # 前面的价值的计算可以利用后面的价值作为中间结果，简化计算；从前往后也可以
         for t in reversed(range(0, len(self.ep_rs))):
             running_add = running_add * GAMMA + self.ep_rs[t]
-            discounted_ep_rs[t] = running_add
+            epiRewardDiscounted[t] = running_add
 
-        discounted_ep_rs = np.array(discounted_ep_rs,dtype=np.float64)
-        discounted_ep_rs -= np.mean(discounted_ep_rs)  # 减均值
-        discounted_ep_rs /= np.std(discounted_ep_rs)  # 除以标准差
-        discounted_ep_rs = torch.FloatTensor(discounted_ep_rs).to(device)
+        epiRewardDiscounted = np.array(epiRewardDiscounted,dtype=np.float64)
+        epiRewardDiscounted -= np.mean(epiRewardDiscounted)  # 减均值
+        epiRewardDiscounted /= np.std(epiRewardDiscounted)  # 除以标准差
+        epiRewardDiscounted = torch.FloatTensor(epiRewardDiscounted).to(device)
 
         # Step 2: 前向传播
-        softmax_input, _ = self.network.forward(torch.FloatTensor(self.ep_obs).to(device))
-        # all_act_prob = F.softmax(softmax_input, dim=0).detach().numpy()
+        softmaxInput, _ = self.network.forward(torch.FloatTensor(self.ep_obs).to(device))
+
         tar = torch.LongTensor(self.ep_as).float()
         # TODO: 输入的target，在本机上提示需要float的类型，但是服务器上却要long
-        # print(softmax_input.shape,tar.shape)
-        neg_log_prob = F.cross_entropy(input=softmax_input, target=tar.to(device),
+
+        negLogProb = F.cross_entropy(input=softmaxInput, target=tar.to(device),
                                        reduction='none')
         # TODO: cross_entropy的问题，注意这里需要torch版本>=1.10.0才有概率式target的支持
 
         # Step 3: 反向传播
-        loss = torch.mean(neg_log_prob * discounted_ep_rs)
+        loss = torch.mean(negLogProb * epiRewardDiscounted)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -323,14 +323,13 @@ def main():
     env = ALPHA_ENV()
     agent = PG(env)
 
-    for episode in range(EPISODE):
+    for episode in range(1,EPISODE):
         state = env.reset() # 返回的state维数: (num_stock, window_size_k, feature_dim)
         # TODO: 解决batch问题，当前只适用于batch_size=1
         for step in range(STEP):
             action = agent.choose_action(state)  # softmax概率选择action
             next_state, reward, done, _ = env.step(action)
             agent.store_transition(state, action, reward)  # 新函数 存取这个transition
-
             state = next_state
             if done:
                 # print("stick for ",step, " steps")
