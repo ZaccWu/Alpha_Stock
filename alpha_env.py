@@ -45,7 +45,8 @@ class ALPHA_ENV(gym.Env):
         # TODO: 临时参数
         self.K = 15 # 历史期为15
         self.test_stock_num = 25    # 先用25支股票测试
-
+        
+        # 在环境初始化阶段统一将数据读入，后续可以直接使用，提高速度
         self.all_stock_close = []   # (stock_num, time_step)
         self.all_stock_feature = [] # (stock_num, time_step, feature,dim)
         for i in range(self.test_stock_num):
