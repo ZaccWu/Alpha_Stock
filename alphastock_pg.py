@@ -163,7 +163,7 @@ class PortfolioGenerator(nn.Module):
 
         # --- Todo: temp: the following codes suit only bsz = 1 -----#
         winner_proportion = F.softmax(winner_assets_x, dim=-1)
-        loser_proportion = F.softmax(1 - loser_assets_x, dim=-1)
+        loser_proportion = -F.softmax(1 - loser_assets_x, dim=-1)
 
         zeros_assets = torch.zeros_like(sorted_x[:, self.G:-self.G],
                                         requires_grad=True).type(x.dtype)
@@ -241,8 +241,8 @@ class PG(object):
         network_output, sorted_indices = self.network.forward(observation)
 
         action_prob = network_output.detach().cpu().numpy()[0]
-        # action_prob的形式: [0.4, 0.1, 0,..., -0.2, -0.3]
-        # action_prob=np.array([0.4,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-0.2,-0.3])
+        # action_prob的形式: [0.4, 0.1, 0,..., 0.2, 0.3]
+        # action_prob=np.array([0.4,0.1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0.2,0.3])
 
         action_shuffle = [np.random.binomial(1,i)
                           if i>=0 else -np.random.binomial(1,-i)
@@ -256,7 +256,7 @@ class PG(object):
         for i in range(len(action_shuffle)):
             action[sorted_indices[i]] = action_shuffle[i]
 
-        # 这里返回的action是一个概率向量，代表每只股票发生交易的概率，action对应位置代表对应股票
+        # 返回一个0-1action list，代表这支股票是否需要交易
         # TODO: 假设前面的（多头）为正，后面的（空头）为负，但向量绝对值之和归一
         # TODO: 在RL优化当中，可能只能让action按概率取某一个值，而不能是一个向量
 
@@ -268,7 +268,7 @@ class PG(object):
         self.ep_as.append(a)
         self.ep_rs.append(r)
 
-    def learn(self):
+    def update_parameters(self):
         self.time_step += 1
 
         # Step 1: 计算每一步的状态价值
@@ -326,8 +326,8 @@ def main():
             state = next_state
             if done:
                 # print("stick for ",step, " steps")
-                print("episode: ", episode, "episode reward: {:.2f}".format(np.mean(agent.ep_rs)))
-                agent.learn()  # 更新策略网络
+                # print("episode: ", episode, "episode reward: {:.2f}".format(np.mean(agent.ep_rs)))
+                agent.update_parameters()  # 更新策略网络
                 break
 
         # Test every 100 episodes
