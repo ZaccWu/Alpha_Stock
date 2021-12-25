@@ -188,7 +188,6 @@ class PortfolioGenerator(nn.Module):
         #               src=b_c,
         #               dim=1)
 
-
         return b_c, sorted_indices
 
 class PGNetwork(nn.Module):
@@ -208,7 +207,7 @@ class PGNetwork(nn.Module):
         ha_rep = self.lstm_ha(x_b)
         # ha_rep: (batch_size, num_stock, E_c)
         cann_score, attn_w = self.cann(ha_rep)
-        # cann_score: (batch_size, num_stock, E_c), attn_w: (batch_size, num_stock, 1)
+        # cann_score: (batch_size, num_stock, 1), attn_w: (batch_size, num_stock, 1)
         portfolios, sorted_indices = self.portfolio_gen(cann_score)
         return portfolios, sorted_indices
 
