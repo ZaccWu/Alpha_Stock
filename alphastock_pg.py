@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import pandas as pd
 import random
 import time
 from collections import deque
@@ -75,7 +76,7 @@ class StdAttn(nn.Module):
         return summed_ha_rep
 
 class LSTMHA(nn.Module):
-    def __init__(self, lstm_input_size=30, lstm_h_dim=32,
+    def __init__(self, lstm_input_size=29, lstm_h_dim=32,
                  lstm_num_layers=1,
                  attn_w_dim=64, dropout=0.2):
         """
@@ -135,7 +136,7 @@ class BasicCANN(nn.Module):
 
 class PortfolioGenerator(nn.Module):
     # 固定规则，无需学习
-    def __init__(self, G=10):
+    def __init__(self, G=7):
         super().__init__()
         self.G = G
 
@@ -206,7 +207,8 @@ class PGNetwork(nn.Module):
         # x_b: (batch_size, num_stock, window_size_K, feature_dim)
         ha_rep = self.lstm_ha(x_b)
         # ha_rep: (batch_size, num_stock, E_c)
-        cann_score, attn_w = self.cann(ha_rep)
+        cann_score, attn_w = self.cann(ha_rep) # TODO: attention之后塌缩成0和1
+
         # cann_score: (batch_size, num_stock, 1), attn_w: (batch_size, num_stock, 1)
         portfolios, sorted_indices = self.portfolio_gen(cann_score)
         return portfolios, sorted_indices
@@ -305,7 +307,7 @@ class PG(object):
 
 # ---------------------------------------------------------
 # Hyper Parameters
-MAX_EPISODE = 3000  # Episode limitation
+MAX_EPISODE = 15000  # Episode limitation
 MAX_STEP = 1000  # Step limitation in an episode
 TEST = 5  # The number of experiment test every 100 episode
 
@@ -313,7 +315,7 @@ TEST = 5  # The number of experiment test every 100 episode
 def main():
     env = ALPHA_ENV()
     agent = PG(env)
-
+    statistic = []
     for episode in range(1, MAX_EPISODE):
         state = env.reset() # 返回的state维数: (num_stock, window_size_k, feature_dim)
 
@@ -342,6 +344,11 @@ def main():
                         break
             ave_reward = total_reward / TEST
             print('Evaluation | episode: ', episode, ' | Evaluation Average Reward:', ave_reward)
+            statistic.append(ave_reward)
+
+    result = pd.DataFrame(statistic)
+    result.to_csv('aveReward.csv')
+
 
 
 if __name__ == '__main__':
