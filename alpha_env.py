@@ -18,8 +18,9 @@ class ALPHA_ENV(gym.Env):
     metadata = {'render.modes': ['human']}
 
     def __init__(self):
-        df = pd.read_csv(r'zztest.csv')
+        #df = pd.read_csv(r'local_zz500b.csv')
         #df = pd.read_csv(r'combine/2018_zz500.csv')
+        df = pd.read_csv(r'zztestn.csv')
         self.today = '2018/1/2'
 
         self.stock_all = df['thscode'].unique() # len=454
@@ -31,10 +32,10 @@ class ALPHA_ENV(gym.Env):
         )
         self.observation_space = gym.spaces.Box(
             low=np.array([-5] * 31),
-            high=np.array([5] * 31)
+            high=np.array([5] * 31),
         )
 
-        self.seq_time = 48
+        self.seq_time = 20
         self.profit = 0
         self.flow = 0
 
@@ -43,7 +44,7 @@ class ALPHA_ENV(gym.Env):
         self.time_stump = df['time']
 
         # TODO: 临时参数
-        self.K = 15 # 历史期为15
+        self.K = 12 # 历史期为15
         self.test_stock_num = 25    # 先用25支股票测试
 
         self.all_stock_close = []   # (stock_num, time_step)
@@ -51,10 +52,10 @@ class ALPHA_ENV(gym.Env):
         for i in range(self.test_stock_num):
             thscode = self.stock_all[i]
             dt = self.data_train[self.stock_list == thscode]
-            stock_i_feature = np.array(dt.iloc[:, 2:])
+            stock_i_feature = np.array(dt.iloc[:, 3:])
             self.all_stock_feature.append(stock_i_feature)
             self.all_stock_close.append(self.close_train[self.stock_list == thscode])
-        
+
         self.all_stock_close = np.array(self.all_stock_close).transpose((1,0)) # (time_step, stock_num)
         self.all_stock_feature = np.array(self.all_stock_feature).transpose((1,0,2)) # (time_step, stock_num, feature_dim)
 
@@ -122,13 +123,31 @@ class ALPHA_ENV(gym.Env):
         # 传入的action：是否买卖股票的向量（按index顺序）\in {0,1,-1}
 
         self.stock_price = self.all_stock_close[self.trade_date + self.t] # 所有股票这个时间的价格向量
+        ave_price = np.mean(self.stock_price)
+        #action = list(map(lambda x: x[0]*x[1]/ave_price, zip(self.stock_price, action))) # 价格normalize
+        action = list(map(lambda x: x[0] * x[1] , zip(self.stock_price, action)))
 
         # 所有股票的time_stump一样的，就默认用最后一支了
         today_time = (self.time_stump1.iloc[self.trade_date + self.t]).split(' ')[0]  # 获取日期到天
 
-        # TODO：先复现最简单的情况：无买卖限制
+        # 无买卖限制
+        # self.holding = list(map(lambda x: x[0]+x[1], zip(self.holding, action)))
+        # self.cost = sum(list(map(lambda x: x[0]*x[1], zip(self.stock_price, action)))) # +表示支出，-表示收入
+
+        # 禁止做空
+        action0 = action
+        judge_trade = list(map(lambda x: x[0]+x[1], zip(self.holding, action0)))    # 判断是否可以交易
+        for i in range(len(action0)):
+            if judge_trade[i]>=0:
+                action[i] = action0[i]
+            else:
+                action[i]=0
         self.holding = list(map(lambda x: x[0]+x[1], zip(self.holding, action)))
         self.cost = sum(list(map(lambda x: x[0]*x[1], zip(self.stock_price, action)))) # +表示支出，-表示收入
+
+        # holding_check = [int(i) for i in self.holding]
+        # print(holding_check)
+
         self.total_money -= self.cost
 
         self.Portfolio_unit = (self.total_money + sum(list(map(lambda x: x[0]*x[1], zip(self.stock_price, self.holding))))
@@ -145,6 +164,10 @@ class ALPHA_ENV(gym.Env):
 
         self.t += 1
         done = self.seq_time < (self.t + 1)
+
+        # if done:
+        #     check_holding = [int(i) for i in self.holding]
+        #     print(check_holding)
 
         sp_std = np.std(self.profit_list)
         if sp_std<10e-4:
