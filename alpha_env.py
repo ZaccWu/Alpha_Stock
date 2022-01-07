@@ -17,25 +17,25 @@ import h5py
 class ALPHA_ENV(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self):
+    def __init__(self, param):
         #df = pd.read_csv(r'local_zz500b.csv')
         #df = pd.read_csv(r'combine/2018_zz500.csv')
-        df = pd.read_csv(r'zztestn.csv')
+        df = pd.read_csv(param['DT_PATH'])
         self.today = '2018/1/2'
 
         self.stock_all = df['thscode'].unique() # len=454
         self.stock_list = df['thscode']
 
-        self.action_space = gym.spaces.Box(
-            low=np.array([-1] * 1),
-            high=np.array([1] * 1),
-        )
-        self.observation_space = gym.spaces.Box(
-            low=np.array([-5] * 31),
-            high=np.array([5] * 31),
-        )
+        # self.action_space = gym.spaces.Box(
+        #     low=np.array([-1] * 1),
+        #     high=np.array([1] * 1),
+        # )
+        # self.observation_space = gym.spaces.Box(
+        #     low=np.array([-5] * 31),
+        #     high=np.array([5] * 31),
+        # )
 
-        self.seq_time = 20
+        self.seq_time = param['SEQ_TIME']
         self.profit = 0
         self.flow = 0
 
@@ -44,15 +44,15 @@ class ALPHA_ENV(gym.Env):
         self.time_stump = df['time']
 
         # TODO: 临时参数
-        self.K = 12 # 历史期为15
-        self.test_stock_num = 25    # 先用25支股票测试
+        self.K = param['HOLDING_PERIOD'] # 历史期
+        self.test_stock_num = param['TEST_NUM_STOCK']    # 用多少股票测试
 
         self.all_stock_close = []   # (stock_num, time_step)
         self.all_stock_feature = [] # (stock_num, time_step, feature,dim)
         for i in range(self.test_stock_num):
             thscode = self.stock_all[i]
             dt = self.data_train[self.stock_list == thscode]
-            stock_i_feature = np.array(dt.iloc[:, 3:])
+            stock_i_feature = np.array(dt.iloc[:, 3:])      # TODO: 数据格式没有统一之前，换数据跑注意这里的feature从第几列开始
             self.all_stock_feature.append(stock_i_feature)
             self.all_stock_close.append(self.close_train[self.stock_list == thscode])
 

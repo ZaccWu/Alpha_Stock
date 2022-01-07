@@ -9,9 +9,32 @@ import time
 from collections import deque
 from env.alpha_env import ALPHA_ENV
 
+# Hyper Parameters
+MAX_EPISODE = 15000  # Episode limitation
+MAX_STEP = 1000  # Step limitation in an episode
+TEST = 5  # The number of experiment test every 100 episode
+TEST_EPI = 100 # How often we test
+
 # Hyper Parameters for PG Network
 GAMMA = 0.95  # discount factor
 LR = 0.01  # learning rate
+LSTM_H_DIM = 128
+ATTN_W_DIM = 64
+LSTM_DROPOUT = 0.2
+LSTM_LAYER = 1
+CANN_HEADS = 4
+STOCK_POOL = 7  # how many candidate stocks (G in the paper)
+
+# Parameters for environment
+param = {
+    'SEQ_TIME': 48,
+    'HOLDING_PERIOD': 12,       # look back history (K in the paper)
+    'TEST_NUM_STOCK': 25,       # 选取多少支股票来跑
+    'DT_PATH': 'zztestn.csv',   # 数据文件路径
+}
+
+# Parameters depend on your data
+FEATURE_DIM = 29    # 股票特征多少个
 
 # Use GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -76,9 +99,9 @@ class StdAttn(nn.Module):
         return summed_ha_rep
 
 class LSTMHA(nn.Module):
-    def __init__(self, lstm_input_size=29, lstm_h_dim=32,
-                 lstm_num_layers=1,
-                 attn_w_dim=64, dropout=0.2):
+    def __init__(self, lstm_input_size=FEATURE_DIM, lstm_h_dim=LSTM_H_DIM,
+                 lstm_num_layers=LSTM_LAYER,
+                 attn_w_dim=ATTN_W_DIM, dropout=LSTM_DROPOUT):
         """
         接收窗口大小为K的固定长度序列作为输入
         """
@@ -115,7 +138,7 @@ class LSTMHA(nn.Module):
         return out_rep
 
 class BasicCANN(nn.Module):
-    def __init__(self, num_heads=4, embed_dim=32):
+    def __init__(self, num_heads=CANN_HEADS, embed_dim=LSTM_H_DIM):
         super().__init__()
         self.attn = nn.MultiheadAttention(num_heads=num_heads,
                                           embed_dim=embed_dim,)
@@ -136,7 +159,7 @@ class BasicCANN(nn.Module):
 
 class PortfolioGenerator(nn.Module):
     # 固定规则，无需学习
-    def __init__(self, G=7):
+    def __init__(self, G=STOCK_POOL):
         super().__init__()
         self.G = G
 
@@ -213,19 +236,9 @@ class PGNetwork(nn.Module):
         portfolios, sorted_indices = self.portfolio_gen(cann_score)
         return portfolios, sorted_indices
 
-    # def initialize_weights(self):
-    #     for m in self.modules():
-    #         nn.init.normal_(m.weight.data, 0, 0.1)
-    #         nn.init.constant_(m.bias.data, 0.01)
-    #         # m.bias.data.zero_()
-
 class PG(object):
     # dqn Agent
     def __init__(self, env):  # 初始化
-        # 状态空间和动作空间的维度
-        # self.state_dim = env.observation_space.shape[0]
-        # self.action_dim = env.action_space.n
-
         # init N Monte Carlo transitions in one game
         self.ep_obs, self.ep_as, self.ep_rs = [], [], []
 
@@ -299,21 +312,18 @@ class PG(object):
         # Step 3: 反向传播
         loss = torch.mean(negLogProb * epiRewardDiscounted)
         self.optimizer.zero_grad()
+        #print('before backward ---------------------------------------')
+        #print(self.network.lstm_ha.lstm.weight_hh_l0.grad)
         loss.backward()
+        #print('after backward ---------------------------------------')
+        #print(self.network.lstm_ha.lstm.weight_hh_l0.grad)
         self.optimizer.step()
 
         # 每次学习完后清空数组
         self.ep_obs, self.ep_as, self.ep_rs = [], [], []
 
-# ---------------------------------------------------------
-# Hyper Parameters
-MAX_EPISODE = 15000  # Episode limitation
-MAX_STEP = 1000  # Step limitation in an episode
-TEST = 5  # The number of experiment test every 100 episode
-
-
 def main():
-    env = ALPHA_ENV()
+    env = ALPHA_ENV(param)
     agent = PG(env)
     statistic = []
     for episode in range(1, MAX_EPISODE):
@@ -331,8 +341,8 @@ def main():
                 agent.update_parameters()  # 更新策略网络
                 break
 
-        # Test every 100 episodes
-        if episode % 100 == 0:
+        # Test every TEST_EPI episodes
+        if episode % TEST_EPI == 0:
             total_reward = 0
             for i in range(TEST):
                 state = env.reset()
@@ -347,9 +357,7 @@ def main():
             statistic.append(ave_reward)
 
     result = pd.DataFrame(statistic)
-    result.to_csv('aveReward.csv')
-
-
+    #result.to_csv('aveReward.csv')
 
 if __name__ == '__main__':
     time_start = time.time()
