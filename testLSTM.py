@@ -246,12 +246,12 @@ def main():
             ave_reward = total_reward / TEST
             print('Evaluation | episode: ', episode, ' | Evaluation Average Reward:', ave_reward)
             if ave_reward>max_train_reward:
-                torch.save(PGNetwork.network, 'net_best.pkl')
+                torch.save(agent.network, 'modelsave/net_best.pkl')
                 print("Saving best reward at episode ", episode)
             statistic.append(ave_reward)
 
         if episode % SAVE_FREQ == 0:
-            torch.save(PG.network, 'net_'+str(episode)+'.pkl')
+            torch.save(agent.network, 'modelsave/net_'+str(episode)+'.pkl')
 
     result = pd.DataFrame(statistic)
     #result.to_csv('aveReward_lstm.csv')
