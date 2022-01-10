@@ -10,10 +10,11 @@ from collections import deque
 from env.alpha_env import ALPHA_ENV
 
 # Hyper Parameters
-MAX_EPISODE = 15000  # Episode limitation
+MAX_EPISODE = 1001  # Episode limitation
 MAX_STEP = 1000  # Step limitation in an episode
 TEST = 5  # The number of experiment test every 100 episode
 TEST_EPI = 100 # How often we test
+SAVE_FREQ = 1000
 
 # Hyper Parameters for PG Network
 GAMMA = 0.95  # discount factor
@@ -134,6 +135,7 @@ class LSTMHA(nn.Module):
         out_rep = self.ha(outputs, outputs[:,-1,:], outputs)
 
         out_rep = out_rep.view(batch_size, num_stock, -1)
+        # out_rep的形状：(batch_size, stock_num, hidden_size)
 
         return out_rep
 
@@ -326,6 +328,7 @@ def main():
     env = ALPHA_ENV(param)
     agent = PG(env)
     statistic = []
+    max_train_reward = -np.inf
     for episode in range(1, MAX_EPISODE):
         state = env.reset() # 返回的state维数: (num_stock, window_size_k, feature_dim)
 
@@ -354,10 +357,16 @@ def main():
                         break
             ave_reward = total_reward / TEST
             print('Evaluation | episode: ', episode, ' | Evaluation Average Reward:', ave_reward)
+            if ave_reward>max_train_reward:
+                torch.save(PGNetwork.network, 'net_best.pkl')
+                print("Saving best reward at episode ", episode)
             statistic.append(ave_reward)
 
+        if episode % SAVE_FREQ == 0:
+            torch.save(PG.network, 'net_'+str(episode)+'.pkl')
+
     result = pd.DataFrame(statistic)
-    #result.to_csv('aveReward.csv')
+    #result.to_csv('aveReward_full.csv')
 
 if __name__ == '__main__':
     time_start = time.time()
