@@ -59,8 +59,8 @@ class ALPHA_ENV(gym.Env):
 
     def reset(self):
         self.inventory = 0
-        self.initial_money = 10000
-        self.total_money = 10000
+        self.initial_money = 1000
+        self.total_money = 1000
         self.profit = 0
         self.profit_list = []       # profit at every timestump
         self.portfolio_list = []    # portfolio at every step
@@ -136,8 +136,12 @@ class ALPHA_ENV(gym.Env):
                 action[i] = action0[i]
             else:
                 action[i]=0
+
+        self.cost = sum(list(map(lambda x: x[0] * x[1], zip(self.stock_price, action))))  # +: spending，-: earning
+        if (self.total_money-self.cost<0):
+            action = [0] * self.test_stock_num
+            self.cost = 0
         self.holding = list(map(lambda x: x[0]+x[1], zip(self.holding, action)))
-        self.cost = sum(list(map(lambda x: x[0]*x[1], zip(self.stock_price, action)))) # +: spending，-: earning
 
         # holding_check = [int(i) for i in self.holding]
         # print(holding_check)
